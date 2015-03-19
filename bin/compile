@@ -53,20 +53,22 @@ install_npm
 
 ####### Build the project's dependencies
 
-head "Building dependencies"
+head "Building dev dependencies"
 cd $build_dir
-build_dependencies
+build_dev_dependencies
 
-####### Create a Procfile if possible
+head "Building bower"
+build_bower
 
-head "Checking startup method"
-ensure_procfile "$start_method" "$build_dir"
-warn_start "$start_method"
+head "Building grunt"
+build_grunt
+
+head "Pruning dependencies"
+prune_dev_dependencies
 
 ####### Finalize the build
 
 head "Finalizing build"
-write_profile
 write_export
 clean_npm
 clean_cache

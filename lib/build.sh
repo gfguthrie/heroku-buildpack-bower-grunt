@@ -18,19 +18,6 @@ build_succeeded() {
   cat $warnings | indent
 }
 
-get_start_method() {
-  local build_dir=$1
-  if test -f $build_dir/Procfile; then
-    echo "Procfile"
-  elif [[ $(read_json "$build_dir/package.json" ".scripts.start") != "" ]]; then
-    echo "npm start"
-  elif test -f $build_dir/server.js; then
-    echo "server.js"
-  else
-    echo ""
-  fi
-}
-
 get_modules_source() {
   local build_dir=$1
   if test -d $build_dir/node_modules; then
@@ -57,7 +44,6 @@ get_modules_cached() {
 # iojs_engine
 # node_engine
 # npm_engine
-# start_method
 # modules_source
 # npm_previous
 # node_previous
@@ -72,7 +58,6 @@ read_current_state() {
   npm_engine=$(read_json "$build_dir/package.json" ".engines.npm")
 
   info "build directory..."
-  start_method=$(get_start_method "$build_dir")
   modules_source=$(get_modules_source "$build_dir")
 
   info "cache directory..."
@@ -95,7 +80,6 @@ show_current_state() {
     info "Node engine:         $iojs_engine (iojs)"
   fi
   info "Npm engine:          ${npm_engine:-unspecified}"
-  info "Start mechanism:     ${start_method:-none}"
   info "node_modules source: ${modules_source:-none}"
   info "node_modules cached: $modules_cached"
   echo ""
@@ -163,7 +147,9 @@ install_npm() {
   fi
 }
 
-function build_dependencies() {
+build_dev_dependencies() {
+  export NODE_ENV=development
+
   if [ "$modules_source" == "" ]; then
     info "Skipping dependencies (no source for node_modules)"
 
@@ -190,32 +176,47 @@ function build_dependencies() {
       npm install --unsafe-perm --quiet --userconfig $build_dir/.npmrc 2>&1 | indent
     fi
   fi
-}
 
-ensure_procfile() {
-  local start_method=$1
-  local build_dir=$2
-  if [ "$start_method" == "Procfile" ]; then
-    info "Found Procfile"
-  elif test -f $build_dir/Procfile; then
-    info "Procfile created during build"
-  elif [ "$start_method" == "npm start" ]; then
-    info "No Procfile; Adding 'web: npm start' to new Procfile"
-    echo "web: npm start" > $build_dir/Procfile
-  elif [ "$start_method" == "server.js" ]; then
-    info "No Procfile; Adding 'web: node server.js' to new Procfile"
-    echo "web: node server.js" > $build_dir/Procfile
-  else
-    info "None found"
+  # re-export the env vars to reset NODE_ENV
+  if [ -d "$env_dir" ]; then
+    export_env_dir $env_dir
   fi
 }
 
-write_profile() {
-  info "Creating runtime environment"
-  mkdir -p $build_dir/.profile.d
-  echo "export PATH=\"\$HOME/.heroku/node/bin:\$HOME/bin:\$HOME/node_modules/.bin:\$PATH\"" > $build_dir/.profile.d/nodejs.sh
-  echo "export NODE_HOME=\"\$HOME/.heroku/node\"" >> $build_dir/.profile.d/nodejs.sh
-  cat $bp_dir/lib/concurrency.sh >> $build_dir/.profile.d/nodejs.sh
+build_bower() {
+  if [ -f $build_dir/bower.json ]; then
+    # make sure that bower is installed locally
+    info "Found bower.js, install bower"
+    npm install bower
+
+    info "Running bower install task"
+    if [ "$NODE_ENV" == "production" ]; then
+      info "...with --production flag"
+      $build_dir/node_modules/.bin/bower install --production
+    else
+      $build_dir/node_modules/.bin/bower install
+    fi
+  else
+    info "No bower.js found"
+  fi
+}
+
+build_grunt() {
+  if [ -f $build_dir/Gruntfile.js ] || [ -f $build_dir/Gruntfile.coffee ]; then
+    # make sure that grunt-cli is installed locally (grunt should be in devDependencies)
+    info "Found Gruntfile, install grunt-cli"
+    npm install grunt-cli
+
+    info "Running grunt heroku:$NODE_ENV task"
+    $build_dir/node_modules/.bin/grunt heroku:$NODE_ENV
+  else
+    info "No Gruntfile (Gruntfile.js, Gruntfile.coffee) found"
+  fi
+}
+
+prune_dev_dependencies() {
+  status "Pruning dev dependencies"
+  npm prune --production 2>&1 | indent
 }
 
 write_export() {
