@@ -58,6 +58,9 @@ install_node() {
     info "Resolving node version ${node_engine:-(latest stable)} via semver.io..."
     node_engine=$(curl --silent --get --data-urlencode "range=${node_engine}" https://semver.herokuapp.com/node/resolve)
   fi
+  info "$node_engine"
+  info `node --version`
+  info `node --version 2>/dev/null`
 
   if [[ `node --version 2>/dev/null` == "$node_engine" ]]; then
     info "node `node --version` already installed"
