@@ -196,7 +196,7 @@ build_bower() {
     npm install bower
 
     info "Running bower install task"
-    if [ "$NODE_ENV" == "production" ]; then
+    if [ "$NPM_CONFIG_PRODUCTION" = true ]; then
       info "...with --production flag"
       $build_dir/node_modules/.bin/bower install --production
     else
@@ -213,16 +213,18 @@ build_grunt() {
     info "Found Gruntfile, install grunt-cli"
     npm install grunt-cli
 
-    info "Running grunt heroku:$NODE_ENV task"
-    $build_dir/node_modules/.bin/grunt heroku:$NODE_ENV
+    info "Running grunt heroku task"
+    $build_dir/node_modules/.bin/grunt heroku
   else
     info "No Gruntfile (Gruntfile.js, Gruntfile.coffee) found"
   fi
 }
 
 prune_dev_dependencies() {
-  status "Pruning dev dependencies"
-  npm prune --production 2>&1 | indent
+  if [ "$NPM_CONFIG_PRODUCTION" = true ]; then
+    status "Pruning dev dependencies"
+    npm --unsafe-perm prune --production 2>&1 | indent
+  fi
 }
 
 write_export() {
