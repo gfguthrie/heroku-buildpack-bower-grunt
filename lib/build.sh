@@ -156,7 +156,7 @@ install_npm() {
 }
 
 build_dev_dependencies() {
-  local current_config=NPM_CONFIG_PRODUCTION
+  local current_config=$NPM_CONFIG_PRODUCTION
   export NPM_CONFIG_PRODUCTION=false
 
   if [ "$modules_source" == "" ]; then
@@ -186,7 +186,7 @@ build_dev_dependencies() {
     fi
   fi
 
-  export NPM_CONFIG_PRODUCTION=current_config
+  export NPM_CONFIG_PRODUCTION=$current_config
   info "$NPM_CONFIG_PRODUCTION"
 }
 
