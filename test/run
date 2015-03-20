@@ -119,39 +119,6 @@ testInvalidDependency() {
   assertCapturedError 1 ""
 }
 
-testNodeModulesCached() {
-  cache=$(mktmpdir)
-  compile "caching" $cache
-  assertCaptured "Caching results for future builds"
-  assertEquals "1" "$(ls -1 $cache/ | grep node | wc -l)"
-  assertEquals "1" "$(ls -1 $cache/node | grep node_modules | wc -l)"
-}
-
-testBuildWithCache() {
-  cache=$(mktmpdir)
-  compile "stable-node" $cache
-  assertCaptured "node_modules cached: false"
-  assertCaptured "Caching results for future builds"
-  assertCapturedSuccess
-
-  compile "stable-node" $cache
-  assertCaptured "node_modules cached: true"
-  assertCaptured "Restoring node modules from cache"
-  assertCapturedSuccess
-}
-
-testModulesCheckedIn() {
-  compile "modules-checked-in"
-  assertCaptured "node_modules source: prebuilt"
-  assertCaptured "Rebuilding any native modules for this architecture"
-  assertCaptured "(preinstall script)"
-  assertCaptured "Installing any new modules"
-  assertCaptured "(postinstall script)"
-  assertNotCaptured "Restoring node modules"
-  assertNotCaptured "Pruning unused dependencies"
-  assertCapturedSuccess
-}
-
 testUserConfig() {
   compile "userconfig"
   assertCaptured "www.google.com"
@@ -183,12 +150,6 @@ testNonFileEnvVars() {
   assertCapturedSuccess
   unset NPM_CONFIG_FOO
   unset NPM_CONFIG_PRODUCTION
-}
-
-testNoDevDependencies() {
-  compile "dev-dependencies"
-  assertNotCaptured "lodash"
-  assertCapturedSuccess
 }
 
 testDevDependencies() {
@@ -225,49 +186,10 @@ testNoOptionalDependencies() {
   assertCapturedSuccess
 }
 
-testDisableCache() {
-  cache=$(mktmpdir)
-  env_dir=$(mktmpdir)
-
-  compile "node-modules-cache-1" $cache
-  assertCaptured "lodash@1.0.0"
-  assertCapturedSuccess
-
-  compile "node-modules-cache-2" $cache
-  assertCaptured "lodash@1.0.0"
-  assertCapturedSuccess
-
-  echo "false" > $env_dir/NODE_MODULES_CACHE
-  compile "node-modules-cache-2" $cache $env_dir
-  assertCaptured "lodash@1.3.1"
-  assertCapturedSuccess
-}
-
-testNpmrc() {
-  compile "dev-dependencies"
-  assertNotCaptured "lodash"
-  assertCapturedSuccess
-
-  compile "dev-dependencies-npmrc"
-  assertCaptured "lodash"
-  assertCapturedSuccess
-}
-
 testShrinkwrap() {
   compile "shrinkwrap"
   assertCaptured "express@4.10.4"
   assertCaptured "lodash@2.4.0"
-  assertNotCaptured "mocha"
-  assertCapturedSuccess
-}
-
-testMultiExport() {
-  compile "stable-node"
-  assertFileContains "export PATH=" "${bp_dir}/export"
-  assertFileContains "/.heroku/node/bin:" "${bp_dir}/export"
-  assertFileContains "/node_modules/.bin:\$PATH" "${bp_dir}/export"
-  assertFileContains "export NODE_HOME=" "${bp_dir}/export"
-  assertFileContains "/.heroku/node\"" "${bp_dir}/export"
   assertCapturedSuccess
 }
 
