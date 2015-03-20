@@ -156,7 +156,8 @@ install_npm() {
 }
 
 build_dev_dependencies() {
-  export NODE_ENV=development
+  local current_config=NPM_CONFIG_PRODUCTION
+  export NPM_CONFIG_PRODUCTION=false
 
   if [ "$modules_source" == "" ]; then
     info "Skipping dependencies (no source for node_modules)"
@@ -185,10 +186,7 @@ build_dev_dependencies() {
     fi
   fi
 
-  # re-export the env vars to reset NODE_ENV
-  if [ -d "$env_dir" ]; then
-    export_env_dir $env_dir
-  fi
+  export NPM_CONFIG_PRODUCTION=current_config
 }
 
 build_bower() {
