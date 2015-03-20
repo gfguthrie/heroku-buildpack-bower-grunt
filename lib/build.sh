@@ -91,41 +91,49 @@ show_current_state() {
 install_node() {
   local node_engine=$1
 
-  # Resolve non-specific node versions using semver.herokuapp.com
-  if ! [[ "$node_engine" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    info "Resolving node version ${node_engine:-(latest stable)} via semver.io..."
-    node_engine=$(curl --silent --get --data-urlencode "range=${node_engine}" https://semver.herokuapp.com/node/resolve)
+  if [ ! -d "$heroku_dir/node" ]; then
+    # Resolve non-specific node versions using semver.herokuapp.com
+    if ! [[ "$node_engine" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+      info "Resolving node version ${node_engine:-(latest stable)} via semver.io..."
+      node_engine=$(curl --silent --get --data-urlencode "range=${node_engine}" https://semver.herokuapp.com/node/resolve)
+    fi
+  
+    # Download node from Heroku's S3 mirror of nodejs.org/dist
+    info "Downloading and installing node $node_engine..."
+    node_url="http://s3pository.heroku.com/node/v$node_engine/node-v$node_engine-linux-x64.tar.gz"
+    curl $node_url -s -o - | tar xzf - -C /tmp
+  
+    # Move node (and npm) into .heroku/node and make them executable
+    mv /tmp/node-v$node_engine-linux-x64/* $heroku_dir/node
+    chmod +x $heroku_dir/node/bin/*
+    PATH=$heroku_dir/node/bin:$PATH
+  else
+    info "Node already installed."
   fi
-
-  # Download node from Heroku's S3 mirror of nodejs.org/dist
-  info "Downloading and installing node $node_engine..."
-  node_url="http://s3pository.heroku.com/node/v$node_engine/node-v$node_engine-linux-x64.tar.gz"
-  curl $node_url -s -o - | tar xzf - -C /tmp
-
-  # Move node (and npm) into .heroku/node and make them executable
-  mv /tmp/node-v$node_engine-linux-x64/* $heroku_dir/node
-  chmod +x $heroku_dir/node/bin/*
-  PATH=$heroku_dir/node/bin:$PATH
 }
 
 install_iojs() {
   local iojs_engine=$1
 
-  # Resolve non-specific iojs versions using semver.herokuapp.com
-  if ! [[ "$iojs_engine" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    info "Resolving iojs version ${iojs_engine:-(latest stable)} via semver.io..."
-    iojs_engine=$(curl --silent --get --data-urlencode "range=${iojs_engine}" https://semver.herokuapp.com/iojs/resolve)
+  if [ ! -d "$heroku_dir/node" ]; then
+    # Resolve non-specific iojs versions using semver.herokuapp.com
+    if ! [[ "$iojs_engine" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+      info "Resolving iojs version ${iojs_engine:-(latest stable)} via semver.io..."
+      iojs_engine=$(curl --silent --get --data-urlencode "range=${iojs_engine}" https://semver.herokuapp.com/iojs/resolve)
+    fi
+  
+    # TODO: point at /dist once that's available
+    info "Downloading and installing iojs $iojs_engine..."
+    download_url="https://iojs.org/dist/v$iojs_engine/iojs-v$iojs_engine-linux-x64.tar.gz"
+    curl $download_url -s -o - | tar xzf - -C /tmp
+  
+    # Move iojs/node (and npm) binaries into .heroku/node and make them executable
+    mv /tmp/iojs-v$iojs_engine-linux-x64/* $heroku_dir/node
+    chmod +x $heroku_dir/node/bin/*
+    PATH=$heroku_dir/node/bin:$PATH
+  else
+    info "Iojs already installed."
   fi
-
-  # TODO: point at /dist once that's available
-  info "Downloading and installing iojs $iojs_engine..."
-  download_url="https://iojs.org/dist/v$iojs_engine/iojs-v$iojs_engine-linux-x64.tar.gz"
-  curl $download_url -s -o - | tar xzf - -C /tmp
-
-  # Move iojs/node (and npm) binaries into .heroku/node and make them executable
-  mv /tmp/iojs-v$iojs_engine-linux-x64/* $heroku_dir/node
-  chmod +x $heroku_dir/node/bin/*
-  PATH=$heroku_dir/node/bin:$PATH
 }
 
 install_npm() {
