@@ -58,11 +58,8 @@ install_node() {
     info "Resolving node version ${node_engine:-(latest stable)} via semver.io..."
     node_engine=$(curl --silent --get --data-urlencode "range=${node_engine}" https://semver.herokuapp.com/node/resolve)
   fi
-  info "$node_engine"
-  info `node --version`
-  info `node --version 2>/dev/null`
 
-  if [[ `node --version 2>/dev/null` == "$node_engine" ]]; then
+  if [[ `node --version 2>/dev/null` == "v$node_engine" ]]; then
     info "node `node --version` already installed"
   else
     # Download node from Heroku's S3 mirror of nodejs.org/dist
@@ -86,7 +83,7 @@ install_iojs() {
     iojs_engine=$(curl --silent --get --data-urlencode "range=${iojs_engine}" https://semver.herokuapp.com/iojs/resolve)
   fi
   
-  if [[ `iojs --version 2>/dev/null` == "$iojs_engine" ]]; then
+  if [[ `iojs --version 2>/dev/null` == "v$iojs_engine" ]]; then
     info "iojs `iojs --version` already installed"
   else
     # TODO: point at /dist once that's available
