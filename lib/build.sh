@@ -187,6 +187,7 @@ build_dev_dependencies() {
   fi
 
   export NPM_CONFIG_PRODUCTION=current_config
+  info "$NPM_CONFIG_PRODUCTION"
 }
 
 build_bower() {
@@ -200,6 +201,7 @@ build_bower() {
       info "...with --production flag"
       $build_dir/node_modules/.bin/bower install --production
     else
+      info "in the else"
       $build_dir/node_modules/.bin/bower install
     fi
   else
@@ -224,6 +226,8 @@ prune_dev_dependencies() {
   if [ "$NPM_CONFIG_PRODUCTION" = true ]; then
     status "Pruning dev dependencies"
     npm --unsafe-perm prune --production 2>&1 | indent
+  else
+    info "in the else again"
   fi
 }
 
