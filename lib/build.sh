@@ -130,7 +130,7 @@ build_dev_dependencies() {
 build_bower() {
   if [ -f $build_dir/bower.json ]; then
     # make sure that bower is installed locally
-    info "Found bower.js, installing bower..."
+    info "Found bower.json, installing bower..."
     npm install bower --unsafe-perm --quiet --userconfig $build_dir/.npmrc 2>&1 | indent
 
     info "Running bower install task"
@@ -141,7 +141,7 @@ build_bower() {
       $build_dir/node_modules/.bin/bower install --quiet | indent
     fi
   else
-    info "No bower.js found"
+    info "No bower.json found"
   fi
 }
 
