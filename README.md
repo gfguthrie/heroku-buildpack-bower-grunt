@@ -5,7 +5,6 @@ This is a [Heroku buildpack](http://devcenter.heroku.com/articles/buildpacks) fo
 ## How it Works
 
 This buildpack was started as a fork from the [official Heroku buildpack for Node.js apps](https://github.com/heroku/heroku-buildpack-nodejs), and as such, has many of the same features.
-However, we don't start up Node, and don't care anything about your Procfile.
 
 This buildpack can be used alone or as part of a chain of multiple buildpacks, whether Node or something else.
 It does not require the Node buildpack, and will work as long as you've got a package.json file, and one of bower.json, Gruntfile.js, or Gruntfile.coffee.
