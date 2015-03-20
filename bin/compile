@@ -39,7 +39,6 @@ if [ "$iojs_engine" == "" ]; then
 else
   warn_node_engine "$iojs_engine"
 fi
-warn_node_modules "$modules_source"
 
 ####### Vendor in binaries
 
@@ -63,14 +62,9 @@ build_bower
 head "Building grunt"
 build_grunt
 
-head "Pruning dependencies"
-prune_dev_dependencies
-
 ####### Finalize the build
 
 head "Finalizing build"
-write_export
+prune_dev_dependencies
 clean_npm
-clean_cache
-create_cache
 build_succeeded

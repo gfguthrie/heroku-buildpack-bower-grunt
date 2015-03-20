@@ -18,36 +18,10 @@ build_succeeded() {
   cat $warnings | indent
 }
 
-get_modules_source() {
-  local build_dir=$1
-  if test -d $build_dir/node_modules; then
-    echo "prebuilt"
-  elif test -f $build_dir/npm-shrinkwrap.json; then
-    echo "npm-shrinkwrap.json"
-  elif test -f $build_dir/package.json; then
-    echo "package.json"
-  else
-    echo ""
-  fi
-}
-
-get_modules_cached() {
-  local cache_dir=$1
-  if test -d $cache_dir/node/node_modules; then
-    echo "true"
-  else
-    echo "false"
-  fi
-}
-
 # Sets:
 # iojs_engine
 # node_engine
 # npm_engine
-# modules_source
-# npm_previous
-# node_previous
-# modules_cached
 # environment variables (from ENV_DIR)
 
 read_current_state() {
@@ -57,18 +31,9 @@ read_current_state() {
   node_engine=$(read_json "$build_dir/package.json" ".engines.node")
   npm_engine=$(read_json "$build_dir/package.json" ".engines.npm")
 
-  info "build directory..."
-  modules_source=$(get_modules_source "$build_dir")
-
-  info "cache directory..."
-  npm_previous=$(file_contents "$cache_dir/node/npm-version")
-  node_previous=$(file_contents "$cache_dir/node/node-version")
-  modules_cached=$(get_modules_cached "$cache_dir")
-
   info "environment variables..."
   export_env_dir $env_dir
   export NPM_CONFIG_PRODUCTION=${NPM_CONFIG_PRODUCTION:-true}
-  export NODE_MODULES_CACHE=${NODE_MODULES_CACHE:-true}
 }
 
 show_current_state() {
@@ -80,59 +45,56 @@ show_current_state() {
     info "Node engine:         $iojs_engine (iojs)"
   fi
   info "Npm engine:          ${npm_engine:-unspecified}"
-  info "node_modules source: ${modules_source:-none}"
-  info "node_modules cached: $modules_cached"
   echo ""
 
   printenv | grep ^NPM_CONFIG_ | indent
-  info "NODE_MODULES_CACHE=$NODE_MODULES_CACHE"
 }
 
 install_node() {
   local node_engine=$1
 
-  if [ ! -d "$heroku_dir/node" ]; then
-    # Resolve non-specific node versions using semver.herokuapp.com
-    if ! [[ "$node_engine" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-      info "Resolving node version ${node_engine:-(latest stable)} via semver.io..."
-      node_engine=$(curl --silent --get --data-urlencode "range=${node_engine}" https://semver.herokuapp.com/node/resolve)
-    fi
-  
+  # Resolve non-specific node versions using semver.herokuapp.com
+  if ! [[ "$node_engine" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    info "Resolving node version ${node_engine:-(latest stable)} via semver.io..."
+    node_engine=$(curl --silent --get --data-urlencode "range=${node_engine}" https://semver.herokuapp.com/node/resolve)
+  fi
+
+  if [[ `node --version 2>/dev/null` == "$node_engine" ]]; then
+    info "node `node --version` already installed"
+  else
     # Download node from Heroku's S3 mirror of nodejs.org/dist
     info "Downloading and installing node $node_engine..."
     node_url="http://s3pository.heroku.com/node/v$node_engine/node-v$node_engine-linux-x64.tar.gz"
     curl $node_url -s -o - | tar xzf - -C /tmp
-  
+
     # Move node (and npm) into .heroku/node and make them executable
     mv /tmp/node-v$node_engine-linux-x64/* $heroku_dir/node
     chmod +x $heroku_dir/node/bin/*
     PATH=$heroku_dir/node/bin:$PATH
-  else
-    info "Node already installed."
   fi
 }
 
 install_iojs() {
   local iojs_engine=$1
 
-  if [ ! -d "$heroku_dir/node" ]; then
-    # Resolve non-specific iojs versions using semver.herokuapp.com
-    if ! [[ "$iojs_engine" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-      info "Resolving iojs version ${iojs_engine:-(latest stable)} via semver.io..."
-      iojs_engine=$(curl --silent --get --data-urlencode "range=${iojs_engine}" https://semver.herokuapp.com/iojs/resolve)
-    fi
+  # Resolve non-specific iojs versions using semver.herokuapp.com
+  if ! [[ "$iojs_engine" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    info "Resolving iojs version ${iojs_engine:-(latest stable)} via semver.io..."
+    iojs_engine=$(curl --silent --get --data-urlencode "range=${iojs_engine}" https://semver.herokuapp.com/iojs/resolve)
+  fi
   
+  if [[ `iojs --version 2>/dev/null` == "$iojs_engine" ]]; then
+    info "iojs `iojs --version` already installed"
+  else
     # TODO: point at /dist once that's available
     info "Downloading and installing iojs $iojs_engine..."
     download_url="https://iojs.org/dist/v$iojs_engine/iojs-v$iojs_engine-linux-x64.tar.gz"
     curl $download_url -s -o - | tar xzf - -C /tmp
-  
+
     # Move iojs/node (and npm) binaries into .heroku/node and make them executable
     mv /tmp/iojs-v$iojs_engine-linux-x64/* $heroku_dir/node
     chmod +x $heroku_dir/node/bin/*
     PATH=$heroku_dir/node/bin:$PATH
-  else
-    info "Iojs already installed."
   fi
 }
 
@@ -159,50 +121,24 @@ build_dev_dependencies() {
   local current_config=$NPM_CONFIG_PRODUCTION
   export NPM_CONFIG_PRODUCTION=false
 
-  if [ "$modules_source" == "" ]; then
-    info "Skipping dependencies (no source for node_modules)"
-
-  elif [ "$modules_source" == "prebuilt" ]; then
-    info "Rebuilding any native modules for this architecture"
-    npm rebuild 2>&1 | indent
-    info "Installing any new modules"
-    npm install --unsafe-perm --quiet --userconfig $build_dir/.npmrc 2>&1 | indent
-
-  else
-    cache_status=$(get_cache_status)
-
-    if [ "$cache_status" == "valid" ]; then
-      info "Restoring node modules from cache"
-      cp -r $cache_dir/node/node_modules $build_dir/
-      info "Pruning unused dependencies"
-      npm --unsafe-perm prune 2>&1 | indent
-      info "Installing any new modules"
-      npm install --unsafe-perm --quiet --userconfig $build_dir/.npmrc 2>&1 | indent
-    else
-      info "$cache_status"
-      info "Installing node modules"
-      touch $build_dir/.npmrc
-      npm install --unsafe-perm --quiet --userconfig $build_dir/.npmrc 2>&1 | indent
-    fi
-  fi
+  info "Installing any new modules"
+  npm install --unsafe-perm --quiet --userconfig $build_dir/.npmrc 2>&1 | indent
 
   export NPM_CONFIG_PRODUCTION=$current_config
-  info "$NPM_CONFIG_PRODUCTION"
 }
 
 build_bower() {
   if [ -f $build_dir/bower.json ]; then
     # make sure that bower is installed locally
-    info "Found bower.js, install bower"
-    npm install bower
+    info "Found bower.js, installing bower..."
+    npm install bower --unsafe-perm --quiet --userconfig $build_dir/.npmrc 2>&1 | indent
 
     info "Running bower install task"
     if [ "$NPM_CONFIG_PRODUCTION" = true ]; then
       info "...with --production flag"
-      $build_dir/node_modules/.bin/bower install --production
+      $build_dir/node_modules/.bin/bower install --quiet --production | indent
     else
-      info "in the else"
-      $build_dir/node_modules/.bin/bower install
+      $build_dir/node_modules/.bin/bower install --quiet | indent
     fi
   else
     info "No bower.js found"
@@ -212,11 +148,11 @@ build_bower() {
 build_grunt() {
   if [ -f $build_dir/Gruntfile.js ] || [ -f $build_dir/Gruntfile.coffee ]; then
     # make sure that grunt-cli is installed locally (grunt should be in devDependencies)
-    info "Found Gruntfile, install grunt-cli"
-    npm install grunt-cli
+    info "Found Gruntfile, installing grunt-cli..."
+    npm install grunt-cli --unsafe-perm --quiet --userconfig $build_dir/.npmrc 2>&1 | indent
 
     info "Running grunt heroku task"
-    $build_dir/node_modules/.bin/grunt heroku
+    $build_dir/node_modules/.bin/grunt heroku | indent
   else
     info "No Gruntfile (Gruntfile.js, Gruntfile.coffee) found"
   fi
@@ -224,59 +160,13 @@ build_grunt() {
 
 prune_dev_dependencies() {
   if [ "$NPM_CONFIG_PRODUCTION" = true ]; then
-    status "Pruning dev dependencies"
+    info "Pruning dev dependencies"
     npm --unsafe-perm prune --production 2>&1 | indent
-  else
-    info "in the else again"
   fi
-}
-
-write_export() {
-  info "Exporting binary paths"
-  echo "export PATH=\"$build_dir/.heroku/node/bin:$build_dir/node_modules/.bin:\$PATH\"" > $bp_dir/export
-  echo "export NODE_HOME=\"$build_dir/.heroku/node\"" >> $bp_dir/export
 }
 
 clean_npm() {
   info "Cleaning npm artifacts"
   rm -rf "$build_dir/.node-gyp"
   rm -rf "$build_dir/.npm"
-}
-
-# Caching
-
-create_cache() {
-  info "Caching results for future builds"
-  mkdir -p $cache_dir/node
-
-  echo `node --version` > $cache_dir/node/node-version
-  echo `npm --version` > $cache_dir/node/npm-version
-
-  if test -d $build_dir/node_modules; then
-    cp -r $build_dir/node_modules $cache_dir/node
-  fi
-}
-
-clean_cache() {
-  info "Cleaning previous cache"
-  rm -rf "$cache_dir/node_modules" # (for apps still on the older caching strategy)
-  rm -rf "$cache_dir/node"
-}
-
-get_cache_status() {
-  local node_version=`node --version`
-  local npm_version=`npm --version`
-
-  # Did we bust the cache?
-  if ! $modules_cached; then
-    echo "No cache available"
-  elif ! $NODE_MODULES_CACHE; then
-    echo "Cache disabled with NODE_MODULES_CACHE"
-  elif [ "$node_previous" != "" ] && [ "$node_version" != "$node_previous" ]; then
-    echo "Node version changed ($node_previous => $node_version); invalidating cache"
-  elif [ "$npm_previous" != "" ] && [ "$npm_version" != "$npm_previous" ]; then
-    echo "Npm version changed ($npm_previous => $npm_version); invalidating cache"
-  else
-    echo "valid"
-  fi
 }
