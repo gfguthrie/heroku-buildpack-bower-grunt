@@ -26,7 +26,7 @@ You also should have grunt, and the various grunt npm libraries you use defined 
 
 You'll first want you to set your buildpack to the multi buildpack:
 
-    $ heroku buildpack:set https://github.com/heroku/heroku-buildpack-multi.git
+    $ heroku buildpacks:set https://github.com/heroku/heroku-buildpack-multi.git
 
 From here you will need to create a `.buildpacks` file which contains (in order) the buildpacks you wish to run when you deploy:
 
